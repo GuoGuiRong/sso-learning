@@ -34,7 +34,9 @@
     
       ![URL访问WEB资源的过程分析](http://oqp19rq4p.bkt.clouddn.com/%E6%B5%8F%E8%A7%88%E5%99%A8%E8%AE%BF%E9%97%AE%E8%BF%87%E7%A8%8B.png) 
       
-      过程原理： 用户发送请求到web服务器，该请求会被正在监听的Connector连接器接收（通过端口号以及协议信息来定位使用哪一个Connector连接器），并把该请求交给Service下的Engine来处理，并等待Engine处理的结果。Engine获得请求后会根据请求的主机信息（主机名）来匹配相应的Host主机，Host主机会根据请求的路径匹配对应的Context，Context web应用匹配上之后就构建request、response请求对象，调用指定的Servlet来处理请求。请求处理完成后会将response对象返回给Host主机，Host主机将response对象返回给Engine引擎，Engine再将response对象返回给Connector链接器，最后Connector连接器将response返回给浏览器。
+    * 过程原理： 
+    
+        用户发送请求到web服务器，该请求会被正在监听的Connector连接器接收（通过端口号以及协议信息来定位使用哪一个Connector连接器），并把该请求交给Service下的Engine来处理，并等待Engine处理的结果。Engine获得请求后会根据请求的主机信息（主机名）来匹配相应的Host主机，Host主机会根据请求的路径匹配对应的Context，Context web应用匹配上之后就构建request、response请求对象，调用指定的Servlet来处理请求。请求处理完成后会将response对象返回给Host主机，Host主机将response对象返回给Engine引擎，Engine再将response对象返回给Connector链接器，最后Connector连接器将response返回给浏览器。
   
   - 基于主机名的虚拟主机 
     
@@ -53,7 +55,7 @@
           127.0.0.1 www.clj.org
         ```
         
-        b.配置server.xml
+        b、配置server.xml
          
         ```xml
           <Host name="www.ggr.org"  appBase="C:/Users/GuiRunning/Desktop/app1" unpackWARs="true" autoDeploy="true">
@@ -69,7 +71,7 @@
            </Host>
         ```
         
-        c.测试
+        c、测试
         
             http://www.ggr.org:8080/
         
@@ -78,9 +80,9 @@
         d.备注：
         
          开始下载新的tomcat7测试，发现每次启动的都是固定的某个tomcat，
-          原来每个tomcat的默认启动未知是调用了系统环境变量CATALINA_HOME里面的tomcat路径，我们只要重新添加一个新变量CATALINA_HOME2只想新的tomcat，
-          然后修改tomcat包下的bin目录里面的catalina.bat,startup.bat,shutdown.bat里面的%CATALINA_HOME%为%CATALINA_HOME2%便可
-          当然还需要添加一个新环境变量CATALINA_BASE2 值和CATALINA_HOME一样，后续步骤和上面一样。
+         原来每个tomcat的默认启动未知是调用了系统环境变量CATALINA_HOME里面的tomcat路径，我们只要重新添加一个新变量CATALINA_HOME2指向新的tomcat存放路径，
+         然后修改新的tomcat包下的bin目录里面的catalina.bat,startup.bat,shutdown.bat里面的%CATALINA_HOME%为%CATALINA_HOME2%便可
+         同时还需要添加一个新环境变量CATALINA_BASE2 值和CATALINA_HOME一样，后续步骤和上面一样。
         
         
   
@@ -90,7 +92,7 @@
      
      * 步骤：
      
-       a. 修改server.xml配置文件如下：
+       a、修改server.xml配置文件如下：
        ```xml
         <Service name="Catalina">
             <Connector port="8080" protocol="HTTP/1.1" connectionTimeout="20000" redirectPort="8443" />
@@ -123,7 +125,7 @@
           </Service>
        ```
        
-       b. 测试
+       b、测试
                 
             http://www.ggr.org:8080/
             http://www.ggr.org:8888/
