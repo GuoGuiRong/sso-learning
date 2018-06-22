@@ -129,4 +129,255 @@
                 
             http://www.ggr.org:8080/
             http://www.ggr.org:8888/
+            
+            
+ # 基于Cookie的单点登录实现
+ 
+  - 说明：Http是一种无状态的协议，所以我们需要额外地使用一些特殊的手段来维护状态。Session/Cookie就是我们用来维护客户端和服务器端状态的一种手段。
+ 通过使用Cookie携带JESSONID的方式来标志每一个会话，从而实现客户端和服务器端状态的管理是这种手段的基本原理。其中Cookie包括了key，value，过期时间，path，域，安全等几个重要属性
+ 通过Cookie我们可以实现同意域名下的服务集群的单点登录。通过设置Cookie的域为某个域名，然后将服务放在这个域名的多个子域名下，就可以实现Cookie共享，
+ 通过设置Cookie的path保证Cookie在作用的请求路径的范围，通过设置过期时间来保证某些数据的阶段性有效。
+ 
+ 
+- 思路：用户每次访问的时候会先进入登陆拦截器，登录拦截器会检查用户是否已经登录，如果没有登录，就会尝试从请求中拿到Cookie然后从Cookie中获取用户信息进行自动登录。
+如果Cookie中没有用户信息，就直接将请求转发到登陆页面进行登录。由于设置了Cookie的域名和路径都囊括了整个服务集群，所以理论上这些集群是共享一个Cookie的。这个时候任何一个服务节点
+登录成功，其他服务节点进入的时候就会拿到新更新的Cookie数据进行自动登录。这就实现了我们需要的单点登录。
+
+     
+     
+- 代码(每次登陆，我们可以回写一个Cookie保存用户的信息)，在我们的登陆Servlet中设置
+```java
+package com.ggr.sso;
+
+import java.io.IOException;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+
+import javax.servlet.ServletException;
+import javax.servlet.annotation.WebServlet;
+import javax.servlet.http.Cookie;
+import javax.servlet.http.HttpServlet;
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
+
+import com.sun.xml.internal.bind.v2.runtime.Name;
+
+import sun.awt.RepaintArea;
+
+public class LoginServlet extends HttpServlet {
+	private static final long serialVersionUID = 1L;
        
+    /**
+     * @see HttpServlet#HttpServlet()
+     */
+    public LoginServlet() {
+        super();
+    }
+
+	/**
+	 * @see HttpServlet#doGet(HttpServletRequest request, HttpServletResponse response)
+	 */
+	protected void doGet(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
+		doPost(request,response);
+	}
+
+	/**
+	 * @see HttpServlet#doPost(HttpServletRequest request, HttpServletResponse response)
+	 */
+	protected void doPost(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
+	
+		String userName = (String)request.getParameter("userName");
+		String password = (String)request.getParameter("password");
+		String autoLogin = (String)request.getParameter("autoLogin");
+		String forwordPath = "/index.jsp";
+		if("logout".equals(request.getParameter("action"))){
+			request.getSession().invalidate();
+			Cookie cookie = new Cookie("ggr", userName+":"+password);
+			cookie.setMaxAge(0);
+			cookie.setPath("/");
+			cookie.setDomain("ggr.com");
+			response.addCookie(cookie);
+			request.getRequestDispatcher("/index.jsp").forward(request, response);	
+			return;
+		}
+		if(userName==null || password==null){
+			forwordPath = "/index.jsp";
+		}else{
+			String pwd = "123456";
+			if(pwd.equals(password)){
+				request.getSession().setAttribute("user", userName);
+				if(autoLogin!=null){//如果设置了的话
+					Cookie cookie = new Cookie("ggr", userName+":"+password);
+					cookie.setMaxAge(24*60*60*14);
+					cookie.setPath("/");
+					cookie.setDomain("ggr.com");
+					response.addCookie(cookie);
+				}			
+				forwordPath = "/success.jsp";
+			}else{
+				forwordPath = "/index.jsp";
+			}
+		}
+		request.getRequestDispatcher(forwordPath).forward(request, response);	
+	}
+
+}
+
+
+```
+
+
+当用户关闭浏览器后再次进入的时候，浏览器会把之前的在同一个域名下面的Cookie携带过去。这个时候我们只需要尝试获取这个放了用户信息的Cookie
+然后解析出用户信息进行自动登录就可以了。
+
+```java
+package com.ggr.sso;
+
+import java.io.IOException;
+
+import javax.servlet.Filter;
+import javax.servlet.FilterChain;
+import javax.servlet.FilterConfig;
+import javax.servlet.ServletException;
+import javax.servlet.ServletRequest;
+import javax.servlet.ServletResponse;
+import javax.servlet.annotation.WebFilter;
+import javax.servlet.http.Cookie;
+import javax.servlet.http.HttpServletRequest;
+
+/**
+ * Servlet Filter implementation class LoginFilter
+ */
+public class LoginFilter implements Filter {
+
+    /**
+     * Default constructor. 
+     */
+    public LoginFilter() {
+        // TODO Auto-generated constructor stub
+    }
+
+	/**
+	 * @see Filter#destroy()
+	 */
+	public void destroy() {
+		// TODO Auto-generated method stub
+	}
+
+	/**
+	 * @see Filter#doFilter(ServletRequest, ServletResponse, FilterChain)
+	 */
+	public void doFilter(ServletRequest request, ServletResponse response, FilterChain chain) throws IOException, ServletException {
+		HttpServletRequest req = (HttpServletRequest)request;
+
+		String user = (String)req.getSession().getAttribute("user");
+		if(user!=null){
+			chain.doFilter(request, response);
+			return;
+		}
+		Cookie[] cookies = req.getCookies();
+		if(cookies!=null && cookies.length>0){
+			for(Cookie c:cookies){
+				if(c.getName().equals("ggr")){
+					String pwd = "123456";
+				    String password = c.getValue().split("0")[1];
+				    if(password.endsWith(pwd)){
+				    	req.getSession().setAttribute("user", c.getName()+":"+c.getValue());
+				    }	
+				    break;
+				}
+			}
+		}
+		chain.doFilter(request, response);
+	}
+
+	/**
+	 * @see Filter#init(FilterConfig)
+	 */
+	private String loginPath;
+	public void init(FilterConfig fConfig) throws ServletException {
+
+		loginPath = (String)fConfig.getInitParameter("loginPath");
+	}
+}
+
+```
+
+同时我在Tomcat中有如下配置server.xml：
+
+```xml
+<?xml version='1.0' encoding='utf-8'?>
+<!--
+  Licensed to the Apache Software Foundation (ASF) under one or more
+  contributor license agreements.  See the NOTICE file distributed with
+  this work for additional information regarding copyright ownership.
+  The ASF licenses this file to You under the Apache License, Version 2.0
+  (the "License"); you may not use this file except in compliance with
+  the License.  You may obtain a copy of the License at
+
+      http://www.apache.org/licenses/LICENSE-2.0
+
+  Unless required by applicable law or agreed to in writing, software
+  distributed under the License is distributed on an "AS IS" BASIS,
+  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  See the License for the specific language governing permissions and
+  limitations under the License.
+-->
+<!-- Note:  A "Server" is not itself a "Container", so you may not
+     define subcomponents such as "Valves" at this level.
+     Documentation at /docs/config/server.html
+ -->
+<Server port="8005" shutdown="SHUTDOWN">
+  <Listener className="org.apache.catalina.startup.VersionLoggerListener" />
+  <!-- Security listener. Documentation at /docs/config/listeners.html
+  <Listener className="org.apache.catalina.security.SecurityListener" />
+  -->
+  <!--APR library loader. Documentation at /docs/apr.html -->
+  <Listener className="org.apache.catalina.core.AprLifecycleListener" SSLEngine="on" />
+  <!--Initialize Jasper prior to webapps are loaded. Documentation at /docs/jasper-howto.html -->
+  <Listener className="org.apache.catalina.core.JasperListener" />
+  <!-- Prevent memory leaks due to use of particular java/javax APIs-->
+  <Listener className="org.apache.catalina.core.JreMemoryLeakPreventionListener" />
+  <Listener className="org.apache.catalina.mbeans.GlobalResourcesLifecycleListener" />
+  <Listener className="org.apache.catalina.core.ThreadLocalLeakPreventionListener" />
+
+  <GlobalNamingResources>
+
+    <Resource name="UserDatabase" auth="Container"
+              type="org.apache.catalina.UserDatabase"
+              description="User database that can be updated and saved"
+              factory="org.apache.catalina.users.MemoryUserDatabaseFactory"
+              pathname="conf/tomcat-users.xml" />
+  </GlobalNamingResources>
+  <Service name="Catalina">
+
+    <Connector port="8888" protocol="HTTP/1.1"
+               connectionTimeout="20000"
+               redirectPort="8443" />
+   
+    <Connector port="8009" protocol="AJP/1.3" redirectPort="8443" />
+
+    <Engine name="Catalina" >
+
+      <Realm className="org.apache.catalina.realm.LockOutRealm">
+       
+        <Realm className="org.apache.catalina.realm.UserDatabaseRealm"
+               resourceName="UserDatabase"/>
+      </Realm>
+      <Host name="ggr.ggr.net"  appBase="webapps" unpackWARs="true" autoDeploy="true"></Host>  
+      <Host name="clj.ggr.net"  appBase="webapps" unpackWARs="true" autoDeploy="true"> </Host>
+      <Host name="localhost"  appBase="webapps"
+            unpackWARs="true" autoDeploy="true">
+        <Valve className="org.apache.catalina.valves.AccessLogValve" directory="logs"
+               prefix="localhost_access_log." suffix=".txt"
+               pattern="%h %l %u %t &quot;%r&quot; %s %b" />
+
+      </Host>
+    </Engine>
+  </Service>
+</Server>
+
+```
+最后一个简单的基于Cookie的单点登录就完成了。
+这种方案有一个很明显的问题就是Cookie放在浏览器存在安全问题，而且很多主站的广告还可以通过Cookie进行用户跟踪（超级Cookie），即使目前
+很多网站依然支持Cookie，但是这种涉及到会泄露用户个人隐私问题的技术本质上我们是不建议使用的。
