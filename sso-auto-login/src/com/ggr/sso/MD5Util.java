@@ -3,17 +3,26 @@ package com.ggr.sso;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 
+import org.apache.tomcat.util.codec.binary.StringUtils;
+
 public class MD5Util {
 
-	public static String  toMd5(String origin) throws RuntimeException{
+	public static String  toMd5(String salt,String origin) throws RuntimeException{
 		MessageDigest messageDigest = null;
 		try {
 			messageDigest = MessageDigest.getInstance("MD5");
 		} catch (NoSuchAlgorithmException e) {
 			throw new RuntimeException(e);
 		}
+		if(salt!=null && salt.trim()!=""){
+			origin = salt+origin;
+		}
 		byte[] result = messageDigest.digest(origin.getBytes());
 		return toHex(result);	
+	}
+	
+	public static String  toMd5(String origin) throws RuntimeException{
+		return toMd5(null,origin);
 	}
 	
 	public static String toHex(byte[] result){
@@ -30,6 +39,6 @@ public class MD5Util {
 	}
 	
 	public static void main(String[] args) {
-		System.out.println(MD5Util.toMd5("ggr"));
+		System.out.println(MD5Util.toMd5(null,"ggr"));
 	}
 }
